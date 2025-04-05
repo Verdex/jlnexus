@@ -1,6 +1,7 @@
 
+
 pub struct Buffer<'a, T> {
-    input : &'a [T],
+    input : &'a [T], // TODO can this be cow?
     index : usize,
 }
 
@@ -91,5 +92,15 @@ impl<'a, T> Buffer<'a, T> {
         let r = f(&mut ops)?;
         self.index = ops.index;
         Ok(r)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn should_get() {
+
     }
 }
