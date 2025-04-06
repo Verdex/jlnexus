@@ -58,7 +58,7 @@ impl<'a, T> FromIterator<T> for Parser<'a, T> {
 
 impl<'a, T> Clone for Parser<'a, T> {
     fn clone(&self) -> Self {
-        Parser { input: self.input.clone(), index: self.index } // TODO use Input::clone
+        Parser { input: Input::clone(&self.input), index: self.index }
     }
 }
 
