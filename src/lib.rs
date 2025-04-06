@@ -177,4 +177,32 @@ mod test {
 
         assert_eq!(result, vec![1, 2, 3]);
     }
+
+    #[test]
+    fn should_get_or() {
+        fn even(input : &mut Buffer<usize>) -> Result<bool, ()> {
+            if input.get(())? % 2 == 0 {
+                Ok(true)
+            }
+            else {
+                Err(())
+            }
+        }
+
+        fn odd(input : &mut Buffer<usize>) -> Result<bool, ()> {
+            if input.get(())? % 2 == 1 {
+                Ok(false)
+            }
+            else {
+                Err(())
+            }
+        }
+        
+        let input = vec![1, 2, 3];
+        let mut buffer = Buffer::new(&input);
+
+        let result = buffer.list(|buffer| buffer.or([even, odd])).unwrap();
+
+        assert_eq!(result, vec![false, true, false]);
+    }
 }
