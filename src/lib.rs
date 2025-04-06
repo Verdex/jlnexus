@@ -58,7 +58,7 @@ impl<'a, T> FromIterator<T> for Parser<'a, T> {
 
 impl<'a, T> Clone for Parser<'a, T> {
     fn clone(&self) -> Self {
-        Parser { input: self.input.clone(), index: self.index }
+        Parser { input: self.input.clone(), index: self.index } // TODO use Input::clone
     }
 }
 
@@ -151,7 +151,40 @@ mod test {
     use super::*;
 
     #[test]
-    fn should_create_borrow_buffer_with_into() {
+    fn should_create_rc_parser_from_with_collect() {
+        let input = vec![1, 2, 3];
+        let mut buffer : Parser<usize> = input.into_iter().collect();
+
+        let value = buffer.get(()).unwrap();
+
+        assert_eq!(*value, 1);
+        assert_eq!(buffer.index(), 1)
+    }
+
+    #[test]
+    fn should_create_rc_parser_from_rc_with_into() {
+        let input : Rc<[usize]> = vec![1, 2, 3].into();
+        let mut buffer : Parser<usize> = (&input).into();
+
+        let value = buffer.get(()).unwrap();
+
+        assert_eq!(*value, 1);
+        assert_eq!(buffer.index(), 1)
+    }
+
+    #[test]
+    fn should_create_rc_parser_with_into() {
+        let input = vec![1, 2, 3];
+        let mut buffer : Parser<usize> = input.into();
+
+        let value = buffer.get(()).unwrap();
+
+        assert_eq!(*value, 1);
+        assert_eq!(buffer.index(), 1)
+    }
+
+    #[test]
+    fn should_create_borrow_parser_with_into() {
         let input = vec![1, 2, 3];
         let mut buffer : Parser<usize> = (&input[..]).into();
 
