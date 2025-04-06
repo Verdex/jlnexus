@@ -11,7 +11,7 @@ impl<'a, T> Clone for Input<'a, T> {
     fn clone(&self) -> Self {
         match self {
             Input::Ref(x) => Input::Ref(x),
-            Input::Rc(x) => Input::Rc(x.clone()),
+            Input::Rc(x) => Input::Rc(Rc::clone(x)),
         }
     }
 }
