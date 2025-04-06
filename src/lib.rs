@@ -27,29 +27,29 @@ impl<'a, T> Deref for Input<'a, T> {
     }
 }
 
-pub struct Buffer<'a, T> {
+pub struct Parser<'a, T> {
     input : Input<'a, T>,
     index : usize,
 }
 
-impl<'a, T> From<&'a [T]> for Buffer<'a, T> {
+impl<'a, T> From<&'a [T]> for Parser<'a, T> {
     fn from(item : &'a [T]) -> Self {
-        Buffer { input: Input::Ref(item), index: 0 }
+        Parser { input: Input::Ref(item), index: 0 }
     }
 }
 
-impl<'a, T> Clone for Buffer<'a, T> {
+impl<'a, T> Clone for Parser<'a, T> {
     fn clone(&self) -> Self {
-        Buffer { input: self.input.clone(), index: self.index }
+        Parser { input: self.input.clone(), index: self.index }
     }
 }
 
-impl<'a, T> Buffer<'a, T> {
-    pub fn new(input : &'a [T]) -> Buffer<'a, T> {
-        Buffer { input: Input::Ref(input), index: 0 }
+impl<'a, T> Parser<'a, T> {
+    pub fn new(input : &'a [T]) -> Parser<'a, T> {
+        Parser { input: Input::Ref(input), index: 0 }
     }
 
-    pub fn or<S, E, const N : usize>(&mut self, targets : [for<'b> fn(&mut Buffer<'b, T>) -> Result<S, E>; N]) -> Result<S, Vec<E>> {
+    pub fn or<S, E, const N : usize>(&mut self, targets : [for<'b> fn(&mut Parser<'b, T>) -> Result<S, E>; N]) -> Result<S, Vec<E>> {
         let mut errors = vec![];
         for target in targets {
             let mut ops = self.clone();
@@ -65,7 +65,7 @@ impl<'a, T> Buffer<'a, T> {
         Err(errors)
     }
 
-    pub fn option<S, E, F : FnOnce(&mut Buffer<'a, T>) -> Result<S, E>>(&mut self, f : F) -> Result<Option<S>, E> {
+    pub fn option<S, E, F : FnOnce(&mut Parser<'a, T>) -> Result<S, E>>(&mut self, f : F) -> Result<Option<S>, E> {
             let mut ops = self.clone();
             match f(&mut ops) {
                 Ok(v) => {
@@ -76,7 +76,7 @@ impl<'a, T> Buffer<'a, T> {
             }
     }
 
-    pub fn list<S, E, F : FnMut(&mut Buffer<'a, T>) -> Result<S, E>>(&mut self, mut f : F) -> Result<Vec<S>, E> {
+    pub fn list<S, E, F : FnMut(&mut Parser<'a, T>) -> Result<S, E>>(&mut self, mut f : F) -> Result<Vec<S>, E> {
         let mut rets = vec![];
         loop {
             let mut ops = self.clone();
@@ -120,7 +120,7 @@ impl<'a, T> Buffer<'a, T> {
         self.index
     }
 
-    pub fn with_rollback<S, E, F : FnOnce(&mut Buffer<'a, T>) -> Result<S, E>>(&mut self, f : F) -> Result<S, E> {
+    pub fn with_rollback<S, E, F : FnOnce(&mut Parser<'a, T>) -> Result<S, E>>(&mut self, f : F) -> Result<S, E> {
         let mut ops = self.clone();
         let r = f(&mut ops)?;
         self.index = ops.index;
@@ -135,7 +135,7 @@ mod test {
     #[test]
     fn should_create_borrow_buffer_with_into() {
         let input = vec![1, 2, 3];
-        let mut buffer : Buffer<usize> = (&input[..]).into();
+        let mut buffer : Parser<usize> = (&input[..]).into();
 
         let value = buffer.get(()).unwrap();
 
@@ -146,7 +146,7 @@ mod test {
     #[test]
     fn should_get() {
         let input = vec![1, 2, 3];
-        let mut buffer = Buffer::new(&input);
+        let mut buffer = Parser::new(&input);
 
         let value = buffer.get(()).unwrap();
 
@@ -157,7 +157,7 @@ mod test {
     #[test]
     fn should_peek() {
         let input = vec![1, 2, 3];
-        let buffer = Buffer::new(&input);
+        let buffer = Parser::new(&input);
 
         let value = buffer.peek(()).unwrap();
 
@@ -168,7 +168,7 @@ mod test {
     #[test]
     fn should_rollback() {
         let input = vec![1, 2, 3];
-        let mut buffer = Buffer::new(&input);
+        let mut buffer = Parser::new(&input);
 
         let _ = buffer.with_rollback(|buffer| {
             buffer.get(())?;
@@ -181,7 +181,7 @@ mod test {
     #[test]
     fn should_indicate_end() {
         let input = vec![1, 2, 3];
-        let mut buffer = Buffer::new(&input);
+        let mut buffer = Parser::new(&input);
 
         assert!(!buffer.end());
         buffer.get(()).unwrap();
@@ -195,7 +195,7 @@ mod test {
     #[test]
     fn should_get_option() {
         let input = vec![1, 2, 3];
-        let mut buffer = Buffer::new(&input);
+        let mut buffer = Parser::new(&input);
 
         let result = buffer.option(|_| Err::<usize, ()>(())).unwrap();
         assert!(result.is_none());
@@ -209,7 +209,7 @@ mod test {
     #[test]
     fn should_get_list() {
         let input = vec![1, 2, 3];
-        let mut buffer = Buffer::new(&input);
+        let mut buffer = Parser::new(&input);
 
         let result = buffer.list(|buffer| Ok::<usize, ()>(*buffer.get(())?)).unwrap();
 
@@ -218,7 +218,7 @@ mod test {
 
     #[test]
     fn should_get_or() {
-        fn even(input : &mut Buffer<usize>) -> Result<bool, ()> {
+        fn even(input : &mut Parser<usize>) -> Result<bool, ()> {
             if input.get(())? % 2 == 0 {
                 Ok(true)
             }
@@ -227,7 +227,7 @@ mod test {
             }
         }
 
-        fn odd(input : &mut Buffer<usize>) -> Result<bool, ()> {
+        fn odd(input : &mut Parser<usize>) -> Result<bool, ()> {
             if input.get(())? % 2 == 1 {
                 Ok(false)
             }
@@ -237,7 +237,7 @@ mod test {
         }
         
         let input = vec![1, 2, 3];
-        let mut buffer = Buffer::new(&input);
+        let mut buffer = Parser::new(&input);
 
         let result = buffer.list(|buffer| buffer.or([even, odd])).unwrap();
 
