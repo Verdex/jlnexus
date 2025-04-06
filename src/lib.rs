@@ -139,4 +139,42 @@ mod test {
 
         assert_eq!(buffer.index(), 0);
     }
+
+    #[test]
+    fn should_indicate_end() {
+        let input = vec![1, 2, 3];
+        let mut buffer = Buffer::new(&input);
+
+        assert!(!buffer.end());
+        buffer.get(()).unwrap();
+        assert!(!buffer.end());
+        buffer.get(()).unwrap();
+        assert!(!buffer.end());
+        buffer.get(()).unwrap();
+        assert!(buffer.end());
+    }
+
+    #[test]
+    fn should_get_option() {
+        let input = vec![1, 2, 3];
+        let mut buffer = Buffer::new(&input);
+
+        let result = buffer.option(|_| Err::<usize, ()>(())).unwrap();
+        assert!(result.is_none());
+        assert_eq!(buffer.index(), 0);
+
+        let result = buffer.option(|buffer| Ok::<usize, ()>(*buffer.get(())?)).unwrap();
+        assert!(matches!(result, Some(1)));
+        assert_eq!(buffer.index(), 1);
+    }
+
+    #[test]
+    fn should_get_list() {
+        let input = vec![1, 2, 3];
+        let mut buffer = Buffer::new(&input);
+
+        let result = buffer.list(|buffer| Ok::<usize, ()>(*buffer.get(())?)).unwrap();
+
+        assert_eq!(result, vec![1, 2, 3]);
+    }
 }
