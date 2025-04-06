@@ -1,25 +1,52 @@
 
+use std::rc::Rc;
+use std::ops::Deref;
+
+enum Input<'a, T> {
+    Ref(&'a [T]),
+    Rc(Rc<[T]>),
+}
+
+impl<'a, T> Clone for Input<'a, T> {
+    fn clone(&self) -> Self {
+        match self {
+            Input::Ref(x) => Input::Ref(x),
+            Input::Rc(x) => Input::Rc(x.clone()),
+        }
+    }
+}
+
+impl<'a, T> Deref for Input<'a, T> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Input::Ref(x) => x,
+            Input::Rc(x) => &*x,
+        }
+    }
+}
 
 pub struct Buffer<'a, T> {
-    input : &'a [T], // TODO can this be cow?
+    input : Input<'a, T>,
     index : usize,
 }
 
 impl<'a, T> From<&'a [T]> for Buffer<'a, T> {
     fn from(item : &'a [T]) -> Self {
-        Buffer { input: item, index: 0 }
+        Buffer { input: Input::Ref(item), index: 0 }
     }
 }
 
 impl<'a, T> Clone for Buffer<'a, T> {
     fn clone(&self) -> Self {
-        Buffer { input: self.input, index: self.index }
+        Buffer { input: self.input.clone(), index: self.index }
     }
 }
 
 impl<'a, T> Buffer<'a, T> {
     pub fn new(input : &'a [T]) -> Buffer<'a, T> {
-        Buffer { input, index: 0 }
+        Buffer { input: Input::Ref(input), index: 0 }
     }
 
     pub fn or<S, E, const N : usize>(&mut self, targets : [for<'b> fn(&mut Buffer<'b, T>) -> Result<S, E>; N]) -> Result<S, Vec<E>> {
