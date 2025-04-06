@@ -38,6 +38,24 @@ impl<'a, T> From<&'a [T]> for Parser<'a, T> {
     }
 }
 
+impl<'a, T> From<Vec<T>> for Parser<'a, T> {
+    fn from(item : Vec<T>) -> Self {
+        Parser { input: Input::Rc(item.into()), index: 0 }
+    }
+}
+
+impl<'a, T> From<&Rc<[T]>> for Parser<'a, T> {
+    fn from(item : &Rc<[T]>) -> Self {
+        Parser { input: Input::Rc(Rc::clone(item)), index: 0 }
+    }
+}
+
+impl<'a, T> FromIterator<T> for Parser<'a, T> {
+    fn from_iter<S>(iter : S) -> Self where S : IntoIterator<Item = T> {
+        iter.into_iter().collect::<Vec<_>>().into()
+    }
+}
+
 impl<'a, T> Clone for Parser<'a, T> {
     fn clone(&self) -> Self {
         Parser { input: self.input.clone(), index: self.index }
