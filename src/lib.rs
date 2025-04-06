@@ -106,6 +106,17 @@ mod test {
     use super::*;
 
     #[test]
+    fn should_create_borrow_buffer_with_into() {
+        let input = vec![1, 2, 3];
+        let mut buffer : Buffer<usize> = (&input[..]).into();
+
+        let value = buffer.get(()).unwrap();
+
+        assert_eq!(*value, 1);
+        assert_eq!(buffer.index(), 1)
+    }
+
+    #[test]
     fn should_get() {
         let input = vec![1, 2, 3];
         let mut buffer = Buffer::new(&input);
