@@ -5,6 +5,12 @@ pub struct Buffer<'a, T> {
     index : usize,
 }
 
+impl<'a, T> From<&'a [T]> for Buffer<'a, T> {
+    fn from(item : &'a [T]) -> Self {
+        Buffer { input: item, index: 0 }
+    }
+}
+
 impl<'a, T> Clone for Buffer<'a, T> {
     fn clone(&self) -> Self {
         Buffer { input: self.input, index: self.index }
@@ -101,6 +107,36 @@ mod test {
 
     #[test]
     fn should_get() {
+        let input = vec![1, 2, 3];
+        let mut buffer = Buffer::new(&input);
 
+        let value = buffer.get(()).unwrap();
+
+        assert_eq!(*value, 1);
+        assert_eq!(buffer.index(), 1)
+    }
+
+    #[test]
+    fn should_peek() {
+        let input = vec![1, 2, 3];
+        let buffer = Buffer::new(&input);
+
+        let value = buffer.peek(()).unwrap();
+
+        assert_eq!(*value, 1);
+        assert_eq!(buffer.index(), 0);
+    }
+
+    #[test]
+    fn should_rollback() {
+        let input = vec![1, 2, 3];
+        let mut buffer = Buffer::new(&input);
+
+        let _ = buffer.with_rollback(|buffer| {
+            buffer.get(())?;
+            Err::<usize, ()>(())
+        });
+
+        assert_eq!(buffer.index(), 0);
     }
 }
