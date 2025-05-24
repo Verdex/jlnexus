@@ -159,12 +159,18 @@ impl<'a, T> Parser<'a, T> {
 mod test {
     use super::*;
 
+    impl JlnError for () {
+        fn is_fatal(&self) -> bool { false }
+        fn eof() -> Self { () }
+        fn aggregate(_errors : Vec<Self>) -> Self { () }
+    }
+
     #[test]
     fn should_create_rc_parser_from_with_collect() {
         let input = vec![1, 2, 3];
         let mut buffer : Parser<usize> = input.into_iter().collect();
 
-        let value = buffer.get(()).unwrap();
+        let value = buffer.get::<()>().unwrap();
 
         assert_eq!(*value, 1);
         assert_eq!(buffer.index(), 1)
@@ -175,7 +181,7 @@ mod test {
         let input : Rc<[usize]> = vec![1, 2, 3].into();
         let mut buffer : Parser<usize> = (&input).into();
 
-        let value = buffer.get(()).unwrap();
+        let value = buffer.get::<()>().unwrap();
 
         assert_eq!(*value, 1);
         assert_eq!(buffer.index(), 1)
@@ -186,7 +192,7 @@ mod test {
         let input = vec![1, 2, 3];
         let mut buffer : Parser<usize> = input.into();
 
-        let value = buffer.get(()).unwrap();
+        let value = buffer.get::<()>().unwrap();
 
         assert_eq!(*value, 1);
         assert_eq!(buffer.index(), 1)
@@ -197,7 +203,7 @@ mod test {
         let input = vec![1, 2, 3];
         let mut buffer : Parser<usize> = (&input[..]).into();
 
-        let value = buffer.get(()).unwrap();
+        let value = buffer.get::<()>().unwrap();
 
         assert_eq!(*value, 1);
         assert_eq!(buffer.index(), 1)
@@ -208,7 +214,7 @@ mod test {
         let input = vec![1, 2, 3];
         let mut buffer = Parser::new(&input);
 
-        let value = buffer.get(()).unwrap();
+        let value = buffer.get::<()>().unwrap();
 
         assert_eq!(*value, 1);
         assert_eq!(buffer.index(), 1)
@@ -219,7 +225,7 @@ mod test {
         let input = vec![1, 2, 3];
         let buffer = Parser::new(&input);
 
-        let value = buffer.peek(()).unwrap();
+        let value = buffer.peek::<()>().unwrap();
 
         assert_eq!(*value, 1);
         assert_eq!(buffer.index(), 0);
@@ -231,7 +237,7 @@ mod test {
         let mut buffer = Parser::new(&input);
 
         let _ = buffer.with_rollback(|buffer| {
-            buffer.get(())?;
+            buffer.get()?;
             Err::<usize, ()>(())
         });
 
@@ -244,11 +250,11 @@ mod test {
         let mut buffer = Parser::new(&input);
 
         assert!(!buffer.end());
-        buffer.get(()).unwrap();
+        buffer.get::<()>().unwrap();
         assert!(!buffer.end());
-        buffer.get(()).unwrap();
+        buffer.get::<()>().unwrap();
         assert!(!buffer.end());
-        buffer.get(()).unwrap();
+        buffer.get::<()>().unwrap();
         assert!(buffer.end());
     }
 
@@ -261,7 +267,7 @@ mod test {
         assert!(result.is_none());
         assert_eq!(buffer.index(), 0);
 
-        let result = buffer.option(|buffer| Ok::<usize, ()>(*buffer.get(())?)).unwrap();
+        let result = buffer.option(|buffer| Ok::<usize, ()>(*buffer.get()?)).unwrap();
         assert!(matches!(result, Some(1)));
         assert_eq!(buffer.index(), 1);
     }
@@ -271,7 +277,7 @@ mod test {
         let input = vec![1, 2, 3];
         let mut buffer = Parser::new(&input);
 
-        let result = buffer.list(|buffer| Ok::<usize, ()>(*buffer.get(())?)).unwrap();
+        let result = buffer.list(|buffer| Ok::<usize, ()>(*buffer.get()?)).unwrap();
 
         assert_eq!(result, vec![1, 2, 3]);
     }
@@ -279,7 +285,7 @@ mod test {
     #[test]
     fn should_get_or() {
         fn even(input : &mut Parser<usize>) -> Result<bool, ()> {
-            if input.get(())? % 2 == 0 {
+            if input.get()? % 2 == 0 {
                 Ok(true)
             }
             else {
@@ -288,7 +294,7 @@ mod test {
         }
 
         fn odd(input : &mut Parser<usize>) -> Result<bool, ()> {
-            if input.get(())? % 2 == 1 {
+            if input.get()? % 2 == 1 {
                 Ok(false)
             }
             else {
