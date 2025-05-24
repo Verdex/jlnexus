@@ -73,7 +73,7 @@ impl<'a, T> Parser<'a, T> {
         Parser { input: Input::Ref(input), index: 0 }
     }
 
-    pub fn or<S, E, const N : usize>(&mut self, targets : [for<'b> fn(&mut Parser<'b, T>) -> Result<S, E>; N]) -> Result<S, Vec<E>> {
+    pub fn or<S, E : JlnError, const N : usize>(&mut self, targets : [for<'b> fn(&mut Parser<'b, T>) -> Result<S, E>; N]) -> Result<S, E> {
         let mut errors = vec![];
         for target in targets {
             let mut ops = self.clone();
@@ -89,7 +89,7 @@ impl<'a, T> Parser<'a, T> {
         Err(errors)
     }
 
-    pub fn option<S, E, F : FnOnce(&mut Parser<'a, T>) -> Result<S, E>>(&mut self, f : F) -> Result<Option<S>, E> {
+    pub fn option<S, E : JlnError, F : FnOnce(&mut Parser<'a, T>) -> Result<S, E>>(&mut self, f : F) -> Result<Option<S>, E> {
             let mut ops = self.clone();
             match f(&mut ops) {
                 Ok(v) => {
@@ -100,7 +100,7 @@ impl<'a, T> Parser<'a, T> {
             }
     }
 
-    pub fn list<S, E, F : FnMut(&mut Parser<'a, T>) -> Result<S, E>>(&mut self, mut f : F) -> Result<Vec<S>, E> {
+    pub fn list<S, E : JlnError, F : FnMut(&mut Parser<'a, T>) -> Result<S, E>>(&mut self, mut f : F) -> Result<Vec<S>, E> {
         let mut rets = vec![];
         loop {
             let mut ops = self.clone();
@@ -115,7 +115,7 @@ impl<'a, T> Parser<'a, T> {
         Ok(rets)
     }
 
-    pub fn peek<E>(&self, e : E) -> Result<&T, E> {
+    pub fn peek<E : JlnError>(&self) -> Result<&T, E> {
         if self.index < self.input.len() {
             let r = &self.input[self.index];
             Ok(r)
@@ -125,7 +125,7 @@ impl<'a, T> Parser<'a, T> {
         }
     }
 
-    pub fn get<E>(&mut self, e : E) -> Result<&T, E> {
+    pub fn get<E : JlnError>(&mut self) -> Result<&T, E> {
         if self.index < self.input.len() {
             let r = &self.input[self.index];
             self.index += 1;
@@ -144,7 +144,7 @@ impl<'a, T> Parser<'a, T> {
         self.index
     }
 
-    pub fn with_rollback<S, E, F : FnOnce(&mut Parser<'a, T>) -> Result<S, E>>(&mut self, f : F) -> Result<S, E> {
+    pub fn with_rollback<S, E : JlnError, F : FnOnce(&mut Parser<'a, T>) -> Result<S, E>>(&mut self, f : F) -> Result<S, E> {
         let mut ops = self.clone();
         let r = f(&mut ops)?;
         self.index = ops.index;
