@@ -86,7 +86,7 @@ impl<'a, T> Parser<'a, T> {
             }
         }
 
-        Err(errors)
+        Err(JlnError::aggregate(errors))
     }
 
     pub fn option<S, E : JlnError, F : FnOnce(&mut Parser<'a, T>) -> Result<S, E>>(&mut self, f : F) -> Result<Option<S>, E> {
@@ -121,7 +121,7 @@ impl<'a, T> Parser<'a, T> {
             Ok(r)
         }
         else {
-            Err(e)
+            Err(JlnError::eof())
         }
     }
 
@@ -132,7 +132,7 @@ impl<'a, T> Parser<'a, T> {
             Ok(r)
         }
         else {
-            Err(e)
+            Err(JlnError::eof())
         }
     }
 
