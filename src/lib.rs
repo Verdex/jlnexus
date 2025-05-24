@@ -27,6 +27,12 @@ impl<'a, T> Deref for Input<'a, T> {
     }
 }
 
+pub trait JlnError : Sized {
+    fn is_fatal(&self) -> bool;
+    fn eof() -> Self;
+    fn aggregate(errors : Vec<Self>) -> Self;
+}
+
 pub struct Parser<'a, T> {
     input : Input<'a, T>,
     index : usize,
