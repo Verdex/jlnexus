@@ -82,6 +82,7 @@ impl<'a, T> Parser<'a, T> {
                     self.index = ops.index;
                     return Ok(s); 
                 },
+                Err(e) if e.is_fatal() => { return Err(e); },
                 Err(e) => { errors.push(e); },
             }
         }
@@ -96,6 +97,7 @@ impl<'a, T> Parser<'a, T> {
                     self.index = ops.index;
                     Ok(Some(v))
                 },
+                Err(e) if e.is_fatal() => { return Err(e); },
                 Err(_) => Ok(None),
             }
     }
@@ -109,6 +111,7 @@ impl<'a, T> Parser<'a, T> {
                     self.index = ops.index;
                     rets.push(v);
                 },
+                Err(e) if e.is_fatal() => { return Err(e); },
                 Err(_) => { break; },
             }
         }
