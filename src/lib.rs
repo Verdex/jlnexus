@@ -27,6 +27,12 @@ impl<'a, T> Deref for Input<'a, T> {
     }
 }
 
+pub trait JlnError : Sized {
+    fn is_fatal(&self) -> bool;
+    fn eof() -> Self;
+    fn aggregate(errors : Vec<Self>) -> Self;
+}
+
 pub struct Parser<'a, T> {
     input : Input<'a, T>,
     index : usize,
@@ -67,7 +73,7 @@ impl<'a, T> Parser<'a, T> {
         Parser { input: Input::Ref(input), index: 0 }
     }
 
-    pub fn or<S, E, const N : usize>(&mut self, targets : [for<'b> fn(&mut Parser<'b, T>) -> Result<S, E>; N]) -> Result<S, Vec<E>> {
+    pub fn or<S, E : JlnError, const N : usize>(&mut self, targets : [for<'b> fn(&mut Parser<'b, T>) -> Result<S, E>; N]) -> Result<S, E> {
         let mut errors = vec![];
         for target in targets {
             let mut ops = self.clone();
@@ -76,25 +82,27 @@ impl<'a, T> Parser<'a, T> {
                     self.index = ops.index;
                     return Ok(s); 
                 },
+                Err(e) if e.is_fatal() => { return Err(e); },
                 Err(e) => { errors.push(e); },
             }
         }
 
-        Err(errors)
+        Err(JlnError::aggregate(errors))
     }
 
-    pub fn option<S, E, F : FnOnce(&mut Parser<'a, T>) -> Result<S, E>>(&mut self, f : F) -> Result<Option<S>, E> {
+    pub fn option<S, E : JlnError, F : FnOnce(&mut Parser<'a, T>) -> Result<S, E>>(&mut self, f : F) -> Result<Option<S>, E> {
             let mut ops = self.clone();
             match f(&mut ops) {
                 Ok(v) => {
                     self.index = ops.index;
                     Ok(Some(v))
                 },
+                Err(e) if e.is_fatal() => { return Err(e); },
                 Err(_) => Ok(None),
             }
     }
 
-    pub fn list<S, E, F : FnMut(&mut Parser<'a, T>) -> Result<S, E>>(&mut self, mut f : F) -> Result<Vec<S>, E> {
+    pub fn list<S, E : JlnError, F : FnMut(&mut Parser<'a, T>) -> Result<S, E>>(&mut self, mut f : F) -> Result<Vec<S>, E> {
         let mut rets = vec![];
         loop {
             let mut ops = self.clone();
@@ -103,30 +111,31 @@ impl<'a, T> Parser<'a, T> {
                     self.index = ops.index;
                     rets.push(v);
                 },
+                Err(e) if e.is_fatal() => { return Err(e); },
                 Err(_) => { break; },
             }
         }
         Ok(rets)
     }
 
-    pub fn peek<E>(&self, e : E) -> Result<&T, E> {
+    pub fn peek<E : JlnError>(&self) -> Result<&T, E> {
         if self.index < self.input.len() {
             let r = &self.input[self.index];
             Ok(r)
         }
         else {
-            Err(e)
+            Err(JlnError::eof())
         }
     }
 
-    pub fn get<E>(&mut self, e : E) -> Result<&T, E> {
+    pub fn get<E : JlnError>(&mut self) -> Result<&T, E> {
         if self.index < self.input.len() {
             let r = &self.input[self.index];
             self.index += 1;
             Ok(r)
         }
         else {
-            Err(e)
+            Err(JlnError::eof())
         }
     }
 
@@ -138,7 +147,7 @@ impl<'a, T> Parser<'a, T> {
         self.index
     }
 
-    pub fn with_rollback<S, E, F : FnOnce(&mut Parser<'a, T>) -> Result<S, E>>(&mut self, f : F) -> Result<S, E> {
+    pub fn with_rollback<S, E : JlnError, F : FnOnce(&mut Parser<'a, T>) -> Result<S, E>>(&mut self, f : F) -> Result<S, E> {
         let mut ops = self.clone();
         let r = f(&mut ops)?;
         self.index = ops.index;
@@ -150,12 +159,26 @@ impl<'a, T> Parser<'a, T> {
 mod test {
     use super::*;
 
+    impl JlnError for () {
+        fn is_fatal(&self) -> bool { false }
+        fn eof() -> Self { () }
+        fn aggregate(_errors : Vec<Self>) -> Self { () }
+    }
+
+    struct TError(bool);
+
+    impl JlnError for TError {
+        fn is_fatal(&self) -> bool { self.0 }
+        fn eof() -> Self { TError(false) }
+        fn aggregate(errors : Vec<Self>) -> Self { TError(errors.into_iter().any(|x| x.is_fatal())) }
+    }
+
     #[test]
     fn should_create_rc_parser_from_with_collect() {
         let input = vec![1, 2, 3];
         let mut buffer : Parser<usize> = input.into_iter().collect();
 
-        let value = buffer.get(()).unwrap();
+        let value = buffer.get::<()>().unwrap();
 
         assert_eq!(*value, 1);
         assert_eq!(buffer.index(), 1)
@@ -166,7 +189,7 @@ mod test {
         let input : Rc<[usize]> = vec![1, 2, 3].into();
         let mut buffer : Parser<usize> = (&input).into();
 
-        let value = buffer.get(()).unwrap();
+        let value = buffer.get::<()>().unwrap();
 
         assert_eq!(*value, 1);
         assert_eq!(buffer.index(), 1)
@@ -177,7 +200,7 @@ mod test {
         let input = vec![1, 2, 3];
         let mut buffer : Parser<usize> = input.into();
 
-        let value = buffer.get(()).unwrap();
+        let value = buffer.get::<()>().unwrap();
 
         assert_eq!(*value, 1);
         assert_eq!(buffer.index(), 1)
@@ -188,7 +211,7 @@ mod test {
         let input = vec![1, 2, 3];
         let mut buffer : Parser<usize> = (&input[..]).into();
 
-        let value = buffer.get(()).unwrap();
+        let value = buffer.get::<()>().unwrap();
 
         assert_eq!(*value, 1);
         assert_eq!(buffer.index(), 1)
@@ -199,7 +222,7 @@ mod test {
         let input = vec![1, 2, 3];
         let mut buffer = Parser::new(&input);
 
-        let value = buffer.get(()).unwrap();
+        let value = buffer.get::<()>().unwrap();
 
         assert_eq!(*value, 1);
         assert_eq!(buffer.index(), 1)
@@ -210,7 +233,7 @@ mod test {
         let input = vec![1, 2, 3];
         let buffer = Parser::new(&input);
 
-        let value = buffer.peek(()).unwrap();
+        let value = buffer.peek::<()>().unwrap();
 
         assert_eq!(*value, 1);
         assert_eq!(buffer.index(), 0);
@@ -222,7 +245,7 @@ mod test {
         let mut buffer = Parser::new(&input);
 
         let _ = buffer.with_rollback(|buffer| {
-            buffer.get(())?;
+            buffer.get()?;
             Err::<usize, ()>(())
         });
 
@@ -235,11 +258,11 @@ mod test {
         let mut buffer = Parser::new(&input);
 
         assert!(!buffer.end());
-        buffer.get(()).unwrap();
+        buffer.get::<()>().unwrap();
         assert!(!buffer.end());
-        buffer.get(()).unwrap();
+        buffer.get::<()>().unwrap();
         assert!(!buffer.end());
-        buffer.get(()).unwrap();
+        buffer.get::<()>().unwrap();
         assert!(buffer.end());
     }
 
@@ -252,7 +275,7 @@ mod test {
         assert!(result.is_none());
         assert_eq!(buffer.index(), 0);
 
-        let result = buffer.option(|buffer| Ok::<usize, ()>(*buffer.get(())?)).unwrap();
+        let result = buffer.option(|buffer| Ok::<usize, ()>(*buffer.get()?)).unwrap();
         assert!(matches!(result, Some(1)));
         assert_eq!(buffer.index(), 1);
     }
@@ -262,7 +285,7 @@ mod test {
         let input = vec![1, 2, 3];
         let mut buffer = Parser::new(&input);
 
-        let result = buffer.list(|buffer| Ok::<usize, ()>(*buffer.get(())?)).unwrap();
+        let result = buffer.list(|buffer| Ok::<usize, ()>(*buffer.get()?)).unwrap();
 
         assert_eq!(result, vec![1, 2, 3]);
     }
@@ -270,7 +293,7 @@ mod test {
     #[test]
     fn should_get_or() {
         fn even(input : &mut Parser<usize>) -> Result<bool, ()> {
-            if input.get(())? % 2 == 0 {
+            if input.get()? % 2 == 0 {
                 Ok(true)
             }
             else {
@@ -279,7 +302,7 @@ mod test {
         }
 
         fn odd(input : &mut Parser<usize>) -> Result<bool, ()> {
-            if input.get(())? % 2 == 1 {
+            if input.get()? % 2 == 1 {
                 Ok(false)
             }
             else {
@@ -293,5 +316,56 @@ mod test {
         let result = buffer.list(|buffer| buffer.or([even, odd])).unwrap();
 
         assert_eq!(result, vec![false, true, false]);
+    }
+
+    #[test]
+    fn should_early_exit_or_on_fatal() {
+        fn even(input : &mut Parser<usize>) -> Result<bool, TError> {
+            if input.get()? % 2 == 0 {
+                Ok(true)
+            }
+            else {
+                Err(TError(true))
+            }
+        }
+
+        fn odd(input : &mut Parser<usize>) -> Result<bool, TError> {
+            if input.get()? % 2 == 1 {
+                Ok(false)
+            }
+            else {
+                Err(TError(false))
+            }
+        }
+        
+        let input = vec![1, 2, 3];
+        let mut buffer = Parser::new(&input);
+
+        let result = buffer.or([even, odd]);
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().is_fatal());
+    }
+
+    #[test]
+    fn should_indicate_err_when_option_encounters_fatal() {
+        let input = vec![1, 2, 3];
+        let mut buffer = Parser::new(&input);
+
+        let result : Result<Option<usize>, _> = buffer.option(|_input| Err(TError(true)));
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().is_fatal());
+    }
+
+    #[test]
+    fn should_indicate_err_when_list_encounters_fatal() {
+        let input = vec![1, 2, 3];
+        let mut buffer = Parser::new(&input);
+
+        let result : Result<Vec<usize>, _> = buffer.list(|_input| Err(TError(true)));
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().is_fatal());
     }
 }
