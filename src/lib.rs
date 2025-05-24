@@ -165,6 +165,14 @@ mod test {
         fn aggregate(_errors : Vec<Self>) -> Self { () }
     }
 
+    struct TError(bool);
+
+    impl JlnError for TError {
+        fn is_fatal(&self) -> bool { self.0 }
+        fn eof() -> Self { TError(false) }
+        fn aggregate(errors : Vec<Self>) -> Self { TError(errors.into_iter().any(|x| x.is_fatal())) }
+    }
+
     #[test]
     fn should_create_rc_parser_from_with_collect() {
         let input = vec![1, 2, 3];
@@ -308,5 +316,56 @@ mod test {
         let result = buffer.list(|buffer| buffer.or([even, odd])).unwrap();
 
         assert_eq!(result, vec![false, true, false]);
+    }
+
+    #[test]
+    fn should_early_exit_or_on_fatal() {
+        fn even(input : &mut Parser<usize>) -> Result<bool, TError> {
+            if input.get()? % 2 == 0 {
+                Ok(true)
+            }
+            else {
+                Err(TError(true))
+            }
+        }
+
+        fn odd(input : &mut Parser<usize>) -> Result<bool, TError> {
+            if input.get()? % 2 == 1 {
+                Ok(false)
+            }
+            else {
+                Err(TError(false))
+            }
+        }
+        
+        let input = vec![1, 2, 3];
+        let mut buffer = Parser::new(&input);
+
+        let result = buffer.or([even, odd]);
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().is_fatal());
+    }
+
+    #[test]
+    fn should_indicate_err_when_option_encounters_fatal() {
+        let input = vec![1, 2, 3];
+        let mut buffer = Parser::new(&input);
+
+        let result : Result<Option<usize>, _> = buffer.option(|_input| Err(TError(true)));
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().is_fatal());
+    }
+
+    #[test]
+    fn should_indicate_err_when_list_encounters_fatal() {
+        let input = vec![1, 2, 3];
+        let mut buffer = Parser::new(&input);
+
+        let result : Result<Vec<usize>, _> = buffer.list(|_input| Err(TError(true)));
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().is_fatal());
     }
 }
